@@ -1,0 +1,2364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Personal Finance Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --primary:#1a73e8; --primary-dark:#1557b0;
+  --success:#34a853; --danger:#ea4335;
+  --warning:#f57c00; --purple:#7b2ff7;
+  --bg:#f0f4f9; --card:#fff;
+  --text:#202124; --muted:#5f6368; --border:#dadce0;
+  --sidebar-w:240px; --header-h:56px; --bottom-nav-h:60px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+.header{
+  position:fixed;top:0;left:0;right:0;height:var(--header-h);
+  background:var(--primary);color:white;
+  display:flex;align-items:center;padding:0 16px;
+  z-index:300;box-shadow:0 2px 6px rgba(0,0,0,0.25);gap:12px;
+}
+.header h1{font-size:18px;font-weight:600;flex:1;}
+.hamburger{
+  display:none;background:none;border:none;
+  color:white;font-size:24px;cursor:pointer;padding:4px 8px;line-height:1;
+}
+
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:190;}
+.overlay.open{display:block;}
+
+.sidebar{
+  position:fixed;top:var(--header-h);left:0;bottom:0;
+  width:var(--sidebar-w);background:white;
+  border-right:1px solid var(--border);
+  z-index:200;overflow-y:auto;padding:12px 0;
+  transition:transform 0.25s ease;
+}
+.nav-section-label{
+  padding:10px 16px 4px;font-size:10px;font-weight:700;
+  color:#aaa;text-transform:uppercase;letter-spacing:1px;
+}
+.nav-divider{border:none;border-top:1px solid var(--border);margin:6px 0;}
+.nav-item{
+  display:flex;align-items:center;gap:12px;
+  padding:11px 18px;cursor:pointer;
+  color:var(--muted);font-size:14px;font-weight:500;
+  border-left:3px solid transparent;
+  transition:all 0.15s;user-select:none;
+}
+.nav-item:hover{background:#f1f3f4;color:var(--text);}
+.nav-item.active{background:#e8f0fe;color:var(--primary);border-left-color:var(--primary);font-weight:600;}
+.nav-item .nav-icon{font-size:18px;width:22px;text-align:center;}
+
+.main{
+  margin-left:var(--sidebar-w);
+  margin-top:var(--header-h);
+  padding:24px;
+  min-height:calc(100vh - var(--header-h));
+}
+
+.page{display:none;}
+.page.active{display:block;}
+
+.summary-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(155px,1fr));
+  gap:14px;margin-bottom:18px;
+}
+.tile{
+  background:white;border-radius:12px;
+  padding:16px 18px;box-shadow:0 1px 4px rgba(0,0,0,0.08);
+  border-top:3px solid var(--primary);
+}
+.tile.red   {border-top-color:var(--danger);}
+.tile.green {border-top-color:var(--success);}
+.tile.orange{border-top-color:var(--warning);}
+.tile.purple{border-top-color:var(--purple);}
+.tile label {font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;display:block;}
+.tile .val  {font-size:22px;font-weight:700;margin-top:4px;}
+
+.networth-bar{
+  background:white;border-radius:12px;
+  padding:16px 22px;box-shadow:0 1px 4px rgba(0,0,0,0.08);
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:18px;
+}
+.networth-bar .nw-label{font-size:15px;font-weight:600;color:var(--muted);}
+.nwval{font-size:26px;font-weight:700;color:var(--success);}
+.nwval.neg{color:var(--danger);}
+
+.card{
+  background:white;border-radius:12px;
+  box-shadow:0 1px 4px rgba(0,0,0,0.08);
+  padding:20px 22px;margin-bottom:18px;
+}
+.card-title{
+  font-size:12px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:0.8px;
+  margin-bottom:14px;padding-bottom:10px;
+  border-bottom:1px solid var(--border);
+}
+
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 22px;}
+.form-group{display:flex;flex-direction:column;gap:5px;}
+.form-group label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;}
+.form-group input,
+.form-group select,
+.form-group textarea{
+  padding:10px 12px;border:1px solid var(--border);
+  border-radius:8px;font-size:14px;color:var(--text);
+  background:#fafafa;font-family:inherit;width:100%;
+  transition:border 0.2s,box-shadow 0.2s;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus{
+  outline:none;border-color:var(--primary);
+  box-shadow:0 0 0 3px rgba(26,115,232,0.12);background:white;
+}
+.form-group textarea{resize:vertical;min-height:70px;}
+.form-full{grid-column:1 / -1;}
+.form-actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;}
+
+.btn{
+  padding:10px 18px;border:none;border-radius:8px;
+  font-size:14px;font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;
+  transition:opacity 0.2s,transform 0.1s;white-space:nowrap;
+}
+.btn:hover{opacity:0.88;}
+.btn:active{transform:scale(0.97);}
+.btn-primary{background:var(--primary);color:white;}
+.btn-success{background:var(--success);color:white;}
+.btn-danger {background:var(--danger); color:white;}
+.btn-warning{background:var(--warning);color:white;}
+.btn-purple {background:var(--purple); color:white;}
+.btn-muted  {background:#e8eaed;color:var(--text);}
+.btn-sm{padding:6px 13px;font-size:12px;border-radius:6px;}
+
+.person-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;}
+.person-section h4{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;}
+.person-item{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:8px 12px;background:#f8f9fa;
+  border-radius:8px;margin-bottom:6px;font-size:14px;
+}
+.person-item .pname {font-weight:500;}
+.person-item .pamount{font-weight:700;color:var(--primary);}
+.person-item .expand-btn{
+  background:none;border:none;color:var(--primary);
+  cursor:pointer;font-size:16px;padding:4px 8px;
+  transition:transform 0.2s;
+}
+.person-item .expand-btn:hover{opacity:0.7;}
+.person-item .expand-btn.expanded{transform:rotate(90deg);}
+.person-sublist{
+  margin-left:20px;margin-top:6px;
+  padding-left:12px;border-left:2px solid #e0e0e0;
+}
+.person-subitem{
+  padding:6px 8px;font-size:13px;color:var(--muted);
+  display:flex;justify-content:space-between;
+  margin-bottom:4px;
+}
+.person-subitem.borrowed{color:var(--success);}
+.person-subitem.repaid{color:var(--danger);}
+.person-subitem.lent{color:var(--danger);}
+.person-subitem.repayment{color:var(--success);}
+
+.filter-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:16px;}
+.filter-bar input{
+  padding:8px 12px;border:1px solid var(--border);
+  border-radius:8px;font-size:14px;background:#fafafa;
+}
+.filter-bar input:focus{outline:none;border-color:var(--primary);}
+.filter-label{font-size:13px;font-weight:600;color:var(--muted);}
+
+.tx-list{list-style:none;padding:0;}
+.tx-item{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 14px;border-radius:10px;margin-bottom:8px;
+  background:#fafafa;border:1px solid var(--border);
+  transition:box-shadow 0.15s;
+}
+.tx-item:hover{box-shadow:0 2px 8px rgba(0,0,0,0.08);}
+.tx-icon{
+  width:38px;height:38px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:17px;flex-shrink:0;
+}
+.tx-icon.income {background:#e6f4ea;}
+.tx-icon.expense{background:#fce8e6;}
+.tx-info{flex:1;min-width:0;}
+.tx-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.tx-cat{font-size:14px;font-weight:600;}
+.tx-badge{font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600;background:#e8f0fe;color:var(--primary);}
+.tx-badge.expense{background:#fce8e6;color:var(--danger);}
+.tx-meta{font-size:12px;color:var(--muted);margin-top:3px;}
+.tx-amount{font-size:15px;font-weight:700;flex-shrink:0;}
+.tx-amount.income {color:var(--success);}
+.tx-amount.expense{color:var(--danger);}
+.tx-actions{display:flex;gap:6px;flex-shrink:0;}
+.empty{color:var(--muted);font-size:14px;padding:20px;text-align:center;}
+
+/* ── MONTHLY SUMMARY ── */
+.month-block{margin-bottom:20px;border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+.month-header{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:12px 16px;background:#f8f9fa;cursor:pointer;
+  font-weight:600;font-size:14px;
+}
+.month-header:hover{background:#f1f3f4;}
+.month-header .mh-right{display:flex;gap:16px;align-items:center;font-size:13px;}
+.month-header .mh-inc{color:var(--success);}
+.month-header .mh-exp{color:var(--danger);}
+.month-header .mh-net{font-weight:700;}
+.month-header .mh-net.pos{color:var(--success);}
+.month-header .mh-net.neg{color:var(--danger);}
+.month-detail{display:none;padding:12px 16px;border-top:1px solid var(--border);}
+.month-detail.open{display:block;}
+.cat-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid #f1f3f4;}
+.cat-row:last-child{border-bottom:none;}
+.cat-row .cat-name{color:var(--muted);}
+.cat-row .cat-amt{font-weight:600;}
+.cat-row .cat-amt.inc{color:var(--success);}
+.cat-row .cat-amt.exp{color:var(--danger);}
+.cat-section-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 6px;}
+/* ── RUNNING BALANCE ── */
+.tx-running{font-size:11px;color:var(--muted);margin-top:2px;}
+
+/* ── SETUP PAGE ── */
+.setup-overlay{
+  position:fixed;inset:0;background:var(--bg);
+  z-index:9999;overflow-y:auto;
+  display:flex;align-items:flex-start;justify-content:center;
+  padding:32px 16px 40px;
+}
+.setup-overlay.hidden{display:none;}
+.setup-box{width:100%;max-width:600px;}
+.setup-header{
+  text-align:center;margin-bottom:28px;
+}
+.setup-header .setup-icon{font-size:48px;display:block;margin-bottom:10px;}
+.setup-header h2{font-size:22px;font-weight:700;color:var(--text);}
+.setup-header p{font-size:13px;color:var(--muted);margin-top:6px;}
+
+.setup-section{
+  background:white;border-radius:12px;
+  box-shadow:0 1px 4px rgba(0,0,0,0.08);
+  padding:18px 20px;margin-bottom:16px;
+}
+.setup-section-title{
+  font-size:11px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:0.8px;
+  margin-bottom:14px;padding-bottom:10px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;
+}
+.setup-row{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:12px 18px;margin-bottom:12px;
+}
+.setup-person-list{margin-top:8px;}
+.setup-person-entry{
+  display:grid;grid-template-columns:1fr 1fr auto;
+  gap:8px;align-items:center;margin-bottom:8px;
+}
+.setup-person-entry input{
+  padding:9px 11px;border:1px solid var(--border);
+  border-radius:8px;font-size:13px;color:var(--text);
+  background:#fafafa;width:100%;
+}
+.setup-person-entry input:focus{
+  outline:none;border-color:var(--primary);
+  box-shadow:0 0 0 3px rgba(26,115,232,0.12);background:white;
+}
+.setup-add-row{
+  display:flex;align-items:center;gap:8px;margin-top:4px;
+}
+.btn-add-person{
+  background:none;border:1px dashed var(--border);
+  border-radius:8px;color:var(--primary);font-size:13px;
+  font-weight:600;padding:8px 14px;cursor:pointer;
+  display:flex;align-items:center;gap:6px;
+  transition:background 0.15s,border-color 0.15s;
+}
+.btn-add-person:hover{background:#f0f4ff;border-color:var(--primary);}
+.btn-remove{
+  background:none;border:none;color:var(--danger);
+  font-size:18px;cursor:pointer;padding:4px 6px;line-height:1;
+  border-radius:6px;flex-shrink:0;
+}
+.btn-remove:hover{background:#fce8e6;}
+.setup-proceed{
+  width:100%;padding:14px;font-size:16px;font-weight:700;
+  background:var(--primary);color:white;border:none;
+  border-radius:12px;cursor:pointer;margin-top:4px;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:opacity 0.2s,transform 0.1s;
+}
+.setup-proceed:hover{opacity:0.88;}
+.setup-proceed:active{transform:scale(0.98);}
+.setup-skip{
+  display:block;text-align:center;margin-top:12px;
+  font-size:13px;color:var(--muted);cursor:pointer;
+  text-decoration:underline;background:none;border:none;
+}
+.setup-skip:hover{color:var(--text);}
+
+
+/* ── DARK MODE ── */
+body.dark{
+  --primary:#4a9eff;--primary-dark:#2176d2;
+  --success:#4caf7d;--danger:#f06b6b;
+  --warning:#ffb74d;--purple:#b47aff;
+  --bg:#1a1b1e;--card:#25262b;
+  --text:#e8e9ec;--muted:#9a9ba3;--border:#3a3b42;
+}
+body.dark .header{background:#1a1b1e;border-bottom:1px solid var(--border);}
+body.dark .sidebar{background:var(--card);}
+body.dark .setup-overlay{background:var(--bg);}
+body.dark .setup-section{background:var(--card);}
+body.dark .tx-item{background:var(--card);}
+body.dark .person-item{background:#2e2f36;}
+body.dark .month-block{border-color:var(--border);}
+body.dark .month-header{background:#2e2f36;}
+body.dark .filter-bar input,body.dark .filter-bar select{background:var(--card);color:var(--text);border-color:var(--border);}
+body.dark .form-group input,body.dark .form-group select,body.dark .form-group textarea{background:var(--card);color:var(--text);border-color:var(--border);}
+body.dark .tile{background:var(--card);}
+body.dark .networth-bar{background:var(--card);}
+body.dark .card{background:var(--card);}
+body.dark .btn-muted{background:#3a3b42;color:var(--text);}
+body.dark .bn-item{color:var(--muted);}
+body.dark .bn-item.active{color:var(--primary);}
+body.dark .bottom-nav{background:var(--card);border-top-color:var(--border);}
+.dark-toggle{background:none;border:none;color:white;font-size:20px;cursor:pointer;padding:4px 6px;line-height:1;}
+
+/* ── SEARCH BAR ── */
+.search-wrap{position:relative;flex:1;min-width:160px;}
+.search-wrap input{padding:8px 12px 8px 34px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:#fafafa;width:100%;}
+body.dark .search-wrap input{background:var(--card);color:var(--text);border-color:var(--border);}
+.search-wrap input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(26,115,232,0.12);background:white;}
+body.dark .search-wrap input:focus{background:var(--card);}
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px;pointer-events:none;}
+.history-totals{
+  display:flex;gap:16px;flex-wrap:wrap;
+  padding:10px 14px;background:#f0f4f9;border-radius:8px;
+  margin-bottom:12px;font-size:13px;font-weight:600;
+}
+body.dark .history-totals{background:#2e2f36;}
+.history-totals .ht-inc{color:var(--success);}
+.history-totals .ht-exp{color:var(--danger);}
+.history-totals .ht-count{color:var(--muted);}
+
+/* ── BUDGET ── */
+.budget-bar-wrap{margin-top:6px;}
+.budget-bar-bg{height:6px;background:#e8eaed;border-radius:4px;overflow:hidden;margin-top:3px;}
+body.dark .budget-bar-bg{background:#3a3b42;}
+.budget-bar-fill{height:100%;border-radius:4px;transition:width 0.4s;}
+.budget-bar-fill.ok{background:var(--success);}
+.budget-bar-fill.warn{background:var(--warning);}
+.budget-bar-fill.over{background:var(--danger);}
+.budget-meta{font-size:11px;color:var(--muted);margin-top:2px;display:flex;justify-content:space-between;}
+
+/* ── SOFT DELETE ── */
+.tx-item.deleted-pending{opacity:0.55;border-color:var(--danger);border-style:dashed;}
+.trash-badge{font-size:11px;padding:2px 7px;border-radius:20px;background:#fce8e6;color:var(--danger);font-weight:600;margin-left:6px;}
+.restore-btn{color:var(--success);font-size:12px;font-weight:600;background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:6px;}
+.restore-btn:hover{background:#e6f4ea;}
+.trash-notice{font-size:12px;color:var(--muted);padding:8px 14px;background:#fce8e6;border-radius:8px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;}
+body.dark .trash-notice{background:#3a2020;}
+
+/* ── RECURRING ── */
+.template-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;border-radius:8px;
+  background:#f8f9fa;border:1px solid var(--border);
+  margin-bottom:8px;font-size:13px;
+}
+body.dark .template-item{background:#2e2f36;}
+.template-item .tpl-name{font-weight:600;flex:1;}
+.template-item .tpl-meta{color:var(--muted);font-size:12px;}
+.template-item .tpl-amt{font-weight:700;margin-right:8px;}
+.template-item .tpl-amt.income{color:var(--success);}
+.template-item .tpl-amt.expense{color:var(--danger);}
+
+/* ── MONTHLY SUMMARY EXPORT + BUDGET ── */
+.month-totals-row{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;}
+.month-total-pill{font-size:12px;padding:4px 10px;border-radius:20px;font-weight:600;}
+.month-total-pill.inc{background:#e6f4ea;color:var(--success);}
+.month-total-pill.exp{background:#fce8e6;color:var(--danger);}
+body.dark .month-total-pill.inc{background:#1a3a24;}
+body.dark .month-total-pill.exp{background:#3a1a1a;}
+
+/* ── DEBT NETTING ── */
+.net-badge{font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600;margin-left:6px;}
+.net-badge.owe{background:#fce8e6;color:var(--danger);}
+.net-badge.owed{background:#e6f4ea;color:var(--success);}
+
+.bottom-nav{
+  display:none;position:fixed;bottom:0;left:0;right:0;
+  height:var(--bottom-nav-h);background:white;
+  border-top:1px solid var(--border);z-index:300;
+}
+.bottom-nav ul{list-style:none;display:flex;height:100%;}
+.bottom-nav ul li{flex:1;}
+.bn-item{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;height:100%;width:100%;
+  color:var(--muted);font-size:10px;font-weight:600;
+  gap:3px;cursor:pointer;border:none;background:none;
+  transition:color 0.15s;
+}
+.bn-item .bn-icon{font-size:20px;}
+.bn-item.active{color:var(--primary);}
+
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%);}
+  .sidebar.open{transform:translateX(0);box-shadow:4px 0 15px rgba(0,0,0,0.15);}
+  .hamburger{display:block;}
+  .main{margin-left:0;padding:14px;padding-bottom:calc(var(--bottom-nav-h) + 14px);}
+  .bottom-nav{display:block;}
+  .form-grid{grid-template-columns:1fr;}
+  .summary-grid{grid-template-columns:1fr 1fr;}
+  .tile .val{font-size:18px;}
+  .nwval{font-size:20px;}
+  .tx-item{flex-wrap:wrap;}
+  .tx-actions{flex-direction:column;}
+  .card{padding:14px 16px;}
+  .header h1{font-size:16px;}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <button class="hamburger" id="hamburgerBtn">☰</button>
+  <h1>💰 Finance Tracker</h1>
+  <button class="dark-toggle" id="darkToggle" title="Toggle dark mode">🌙</button>
+  <button class="btn btn-danger btn-sm" id="clearBtn">🗑 Clear All</button>
+</div>
+
+<div class="overlay" id="overlay"></div>
+
+<nav class="sidebar" id="sidebar">
+  <div class="nav-section-label">Overview</div>
+  <div class="nav-item active" data-page="dashboard"><span class="nav-icon">📊</span> Dashboard</div>
+  <hr class="nav-divider">
+  <div class="nav-section-label">Transactions</div>
+  <div class="nav-item" data-page="add"><span class="nav-icon">➕</span> Add Transaction</div>
+  <div class="nav-item" data-page="history"><span class="nav-icon">📋</span> History</div>
+  <hr class="nav-divider">
+  <div class="nav-section-label">People</div>
+  <div class="nav-item" data-page="people"><span class="nav-icon">👥</span> Person-wise</div>
+  <hr class="nav-divider">
+  <div class="nav-section-label">Reports</div>
+  <div class="nav-item" data-page="monthly"><span class="nav-icon">📅</span> Monthly Summary</div>
+  <hr class="nav-divider">
+  <div class="nav-section-label">Tools</div>
+  <div class="nav-item" data-page="recurring"><span class="nav-icon">🔁</span> Recurring</div>
+  <div class="nav-item" data-page="budget"><span class="nav-icon">🎯</span> Budgets</div>
+  <div class="nav-item" data-page="trash"><span class="nav-icon">🗑</span> Trash <span id="trashBadge" style="margin-left:auto;background:var(--danger);color:white;font-size:10px;padding:1px 6px;border-radius:10px;display:none"></span></div>
+  <hr class="nav-divider">
+  <div class="nav-section-label">Settings</div>
+  <div class="nav-item" data-page="initial"><span class="nav-icon">🏁</span> Initial Details</div>
+  <hr class="nav-divider">
+  <div class="nav-section-label">Data</div>
+  <div class="nav-item" id="sidebarDownload"><span class="nav-icon">⬇</span> Download XLSX</div>
+  <div class="nav-item" id="sidebarImport"><span class="nav-icon">⬆</span> Import XLSX</div>
+</nav>
+
+<div class="main">
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="summary-grid">
+      <div class="tile green"> <label>Cash Balance</label><div class="val">₹<span id="balance">0.00</span></div></div>
+      <div class="tile red">   <label>You Owe</label>     <div class="val">₹<span id="youOwe">0.00</span></div></div>
+      <div class="tile">       <label>Others Owe</label>  <div class="val">₹<span id="othersOwe">0.00</span></div></div>
+      <div class="tile orange"><label>Investments</label> <div class="val">₹<span id="investments">0.00</span></div></div>
+      <div class="tile purple"><label>Gifts Given</label> <div class="val">₹<span id="totalGift">0.00</span></div></div>
+    </div>
+    <div class="networth-bar">
+      <span class="nw-label">💼 Net Worth</span>
+      <span class="nwval" id="netWorth">₹0.00</span>
+    </div>
+    <div class="card">
+      <div class="card-title">🕒 Recent Transactions</div>
+      <ul class="tx-list" id="recentHistory"><li class="empty">No transactions yet</li></ul>
+    </div>
+  </div>
+
+  <!-- ADD TRANSACTION -->
+  <div class="page" id="page-add">
+    <div class="card">
+      <div class="card-title" id="formTitle">➕ Add Transaction</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="date">
+        </div>
+        <div class="form-group">
+          <label>Day</label>
+          <input type="text" id="day" readonly style="background:#f1f3f4;color:var(--muted)">
+        </div>
+        <div class="form-group">
+          <label>Amount (₹)</label>
+          <input type="number" id="amount" min="0.01" step="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select id="type">
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="category"></select>
+        </div>
+        <div class="form-group" id="personDiv" style="display:none">
+          <label>Person</label>
+          <input type="text" id="person" placeholder="Enter name">
+          <select id="personSelect" style="display:none;margin-top:6px"></select>
+        </div>
+
+        <div class="form-group form-full">
+          <label>Description (Optional)</label>
+          <textarea id="desc" placeholder="Add notes..."></textarea>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="addBtn">➕ Add</button>
+        <button class="btn btn-warning" id="updateBtn" style="display:none">💾 Update</button>
+        <button class="btn btn-muted"   id="cancelBtn" style="display:none">✕ Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="page" id="page-history">
+    <div class="card">
+      <div class="card-title">📋 Transaction History</div>
+      <div class="filter-bar">
+        <div class="search-wrap"><span class="search-icon">🔍</span><input type="text" id="searchText" placeholder="Search description, person…"></div>
+        <span class="filter-label">From</span><input type="date" id="fromDate">
+        <span class="filter-label">To</span>  <input type="date" id="toDate">
+        <select id="filterType" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fafafa;">
+          <option value="">All Types</option>
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </select>
+        <select id="filterCat" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fafafa;max-width:150px;">
+          <option value="">All Categories</option>
+        </select>
+        <button class="btn btn-muted   btn-sm" id="clearFilterBtn">✕ Clear</button>
+        <button class="btn btn-success btn-sm" id="downloadBtn">⬇ XLSX</button>
+        <button class="btn btn-purple  btn-sm" id="importBtn">⬆ Import</button>
+      </div>
+      <div class="history-totals" id="historyTotals" style="display:none">
+        <span class="ht-count" id="htCount"></span>
+        <span class="ht-inc" id="htInc"></span>
+        <span class="ht-exp" id="htExp"></span>
+        <span style="color:var(--muted)" id="htNet"></span>
+      </div>
+      <ul class="tx-list" id="history"><li class="empty">No transactions yet</li></ul>
+    </div>
+  </div>
+
+  <!-- PEOPLE -->
+  <div class="page" id="page-people">
+    <div class="card" id="netSettlementCard" style="display:none">
+      <div class="card-title">⚖️ Net Settlement</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Where the same person appears in both Borrowed and Lent, the net amount is shown.</p>
+      <div id="netSettlementList"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">👥 Person-wise Summary</div>
+      <div class="person-grid">
+        <div class="person-section">
+          <h4>📤 Borrowed From</h4>
+          <div id="borrowedList"><p class="empty">No debts</p></div>
+        </div>
+        <div class="person-section">
+          <h4>📥 Lent To</h4>
+          <div id="lentList"><p class="empty">No loans</p></div>
+        </div>
+        <div class="person-section">
+          <h4>🎁 Gifts Given</h4>
+          <div id="giftList"><p class="empty">No gifts</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECURRING TEMPLATES -->
+  <div class="page" id="page-recurring">
+    <div class="card">
+      <div class="card-title">🔁 Recurring Templates</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">Save frequently used transactions as templates. Tap Apply to add them instantly.</p>
+      <div id="templateList"><p class="empty">No templates yet. Add a transaction and save it as a template.</p></div>
+    </div>
+    <div class="card">
+      <div class="card-title">➕ Save Current Form as Template</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <div class="form-group" style="flex:1;min-width:160px;">
+          <label>Template Name</label>
+          <input type="text" id="templateName" placeholder="e.g. Monthly Salary">
+        </div>
+        <button class="btn btn-primary" id="saveTemplateBtn" style="margin-top:18px;">💾 Save Template</button>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px;">Fill in the Add Transaction form first, then save it as a template here.</p>
+    </div>
+  </div>
+
+  <!-- BUDGETS -->
+  <div class="page" id="page-budget">
+    <div class="card">
+      <div class="card-title">🎯 Monthly Budgets</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">Set a monthly spending limit per category. Progress shown in Monthly Summary.</p>
+      <div id="budgetList"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin-top:12px;flex-wrap:wrap;">
+        <div class="form-group">
+          <label>Category</label>
+          <select id="budgetCat"></select>
+        </div>
+        <div class="form-group">
+          <label>Monthly Limit (₹)</label>
+          <input type="number" id="budgetAmt" min="1" step="1" placeholder="e.g. 3000">
+        </div>
+        <button class="btn btn-primary" id="saveBudgetBtn">➕ Set</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRASH (SOFT DELETE) -->
+  <div class="page" id="page-trash">
+    <div class="card">
+      <div class="card-title">🗑 Recently Deleted</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Deleted transactions are kept here for 30 days. Restore or permanently delete them.</p>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <button class="btn btn-danger btn-sm" id="emptyTrashBtn">🗑 Empty Trash</button>
+      </div>
+      <ul class="tx-list" id="trashList"><li class="empty">Trash is empty</li></ul>
+    </div>
+  </div>
+
+  <!-- MONTHLY SUMMARY -->
+  <div class="page" id="page-monthly">
+    <div class="card">
+      <div class="card-title">📅 Monthly Summary</div>
+      <div style="margin-bottom:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <select id="monthlyYear" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:#fafafa;"></select>
+        <span style="font-size:13px;color:var(--muted);">← select year</span>
+        <button class="btn btn-success btn-sm" id="exportMonthlyBtn">⬇ Export Summary</button>
+      </div>
+      <div id="monthlySummaryContent"></div>
+    </div>
+  </div>
+
+  <!-- INITIAL DETAILS VIEW/EDIT -->
+  <div class="page" id="page-initial">
+    <div class="card">
+      <div class="card-title">🏁 Initial Details</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:18px;">These are your opening balances. Edit and save to update the dashboard.</p>
+
+      <div class="form-grid" style="margin-bottom:16px;">
+        <div class="form-group">
+          <label>Cash / Bank Balance (₹)</label>
+          <input type="number" id="initBalanceEdit" min="0" step="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label>Investments (₹)</label>
+          <input type="number" id="initInvestmentEdit" min="0" step="0.01" placeholder="0.00">
+        </div>
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <div class="card-title" style="margin-bottom:10px;">📤 Money You Owe (Debt)</div>
+        <div class="setup-person-list" id="initDebtList"></div>
+        <button class="btn-add-person" id="initAddDebt">＋ Add Person</button>
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <div class="card-title" style="margin-bottom:10px;">📥 Money Others Owe You (Lent)</div>
+        <div class="setup-person-list" id="initLentList"></div>
+        <button class="btn-add-person" id="initAddLent">＋ Add Person</button>
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <div class="card-title" style="margin-bottom:10px;">🎁 Gifts Given</div>
+        <div class="setup-person-list" id="initGiftList"></div>
+        <button class="btn-add-person" id="initAddGift">＋ Add Person</button>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-primary" id="initSaveBtn">💾 Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<nav class="bottom-nav">
+  <ul>
+    <li><button class="bn-item active" data-page="dashboard"><span class="bn-icon">📊</span>Dashboard</button></li>
+    <li><button class="bn-item" data-page="add">            <span class="bn-icon">➕</span>Add</button></li>
+    <li><button class="bn-item" data-page="history">        <span class="bn-icon">📋</span>History</button></li>
+    <li><button class="bn-item" data-page="people">         <span class="bn-icon">👥</span>People</button></li>
+  </ul>
+</nav>
+
+
+<!-- SETUP PAGE OVERLAY -->
+<div class="setup-overlay" id="setupOverlay">
+  <div class="setup-box">
+    <div class="setup-header">
+      <span class="setup-icon">💰</span>
+      <h2>Welcome to Finance Tracker</h2>
+      <p>Enter your current financial snapshot to get started.<br>You can skip this if you're starting fresh.</p>
+    </div>
+
+    <!-- Cash Balance -->
+    <div class="setup-section">
+      <div class="setup-section-title">🏦 Cash Balance</div>
+      <div class="form-group">
+        <label>Current Cash / Bank Balance (₹)</label>
+        <input type="number" id="setupBalance" min="0" step="0.01" placeholder="0.00">
+      </div>
+    </div>
+
+    <!-- Investments -->
+    <div class="setup-section">
+      <div class="setup-section-title">📈 Investments</div>
+      <div class="form-group">
+        <label>Total Investment Value (₹)</label>
+        <input type="number" id="setupInvestment" min="0" step="0.01" placeholder="0.00">
+      </div>
+    </div>
+
+    <!-- Debt (You Owe) -->
+    <div class="setup-section">
+      <div class="setup-section-title">📤 Money You Owe (Debt)</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">Add each person you owe money to.</p>
+      <div class="setup-person-list" id="setupDebtList"></div>
+      <button class="btn-add-person" id="addDebtPerson">＋ Add Person</button>
+    </div>
+
+    <!-- Lent (Others Owe You) -->
+    <div class="setup-section">
+      <div class="setup-section-title">📥 Money Others Owe You (Lent)</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">Add each person who owes you money.</p>
+      <div class="setup-person-list" id="setupLentList"></div>
+      <button class="btn-add-person" id="addLentPerson">＋ Add Person</button>
+    </div>
+
+    <!-- Gifts Given -->
+    <div class="setup-section">
+      <div class="setup-section-title">🎁 Gifts Given</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">Add each person you've gifted money to.</p>
+      <div class="setup-person-list" id="setupGiftList"></div>
+      <button class="btn-add-person" id="addGiftPerson">＋ Add Person</button>
+    </div>
+
+    <button class="setup-proceed" id="setupProceedBtn">✅ Proceed to Dashboard</button>
+    <button class="setup-skip" id="setupSkipBtn">Skip — start with zero balances</button>
+  </div>
+</div>
+
+<input type="file" id="importFile" accept=".xlsx" style="display:none">
+
+<script>
+/* ─── STATE ─── */
+let balance = 0, youOwe = 0, othersOwe = 0, investments = 0, totalGift = 0;
+let transactions = [], borrowedMap = {}, lentMap = {}, giftMap = {};
+let editIndex = null;
+let currentPage = "dashboard";
+
+const STORAGE_KEY       = "financeTrackerData";
+const SETUP_DONE_KEY   = "financeTrackerSetupDone";
+const INITIAL_DATA_KEY = "financeTrackerInitial";
+const TRASH_KEY        = "financeTrackerTrash";
+const TEMPLATES_KEY    = "financeTrackerTemplates";
+const BUDGETS_KEY      = "financeTrackerBudgets";
+const DARK_KEY         = "financeTrackerDark";
+const PERSON_CATS       = ["Borrowed","Lent Repayment","Lent","Debt Repayment","Gift"];
+const INCOME_CATS       = ["Salary","Business","Borrowed","Lent Repayment","Gift Received","Other"];
+const EXPENSE_CATS      = ["Food","Family","Shopping","Travel","Bills","Recharge","Lent",
+                           "Debt Repayment","Investment","Tea","Gift","Entertainment","Education","Other"];
+
+document.addEventListener("DOMContentLoaded", function () {
+
+  const ge = id => document.getElementById(id);
+
+  const elDate      = ge("date");
+  const elDay       = ge("day");
+  const elAmount    = ge("amount");
+  const elType      = ge("type");
+  const elCat       = ge("category");
+  const elPersonDiv = ge("personDiv");
+  const elPerson    = ge("person");
+  const elPersonSel = ge("personSelect");
+  const elDesc      = ge("desc");
+  const elFormTitle = ge("formTitle");
+  const elUpdateBtn = ge("updateBtn");
+  const elCancelBtn = ge("cancelBtn");
+  const elFromDate  = ge("fromDate");
+  const elToDate    = ge("toDate");
+
+
+  /* ─── NAVIGATION ─── */
+  function showPage(name) {
+    document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+    ge("page-" + name).classList.add("active");
+    document.querySelectorAll(".nav-item[data-page]")
+      .forEach(el => el.classList.toggle("active", el.dataset.page === name));
+    document.querySelectorAll(".bn-item[data-page]")
+      .forEach(el => el.classList.toggle("active", el.dataset.page === name));
+    currentPage = name;
+    closeSidebar();
+    if (name === "history")   { populateCatFilter(); filterTransactions(); }
+    if (name === "dashboard") renderRecent();
+    if (name === "initial")   renderInitialPage();
+    if (name === "monthly")   renderMonthlySummary();
+    if (name === "recurring") renderTemplates();
+    if (name === "budget")    renderBudgetPage();
+    if (name === "trash")     renderTrash();
+  }
+
+  function toggleSidebar() {
+    ge("sidebar").classList.toggle("open");
+    ge("overlay").classList.toggle("open");
+  }
+  function closeSidebar() {
+    ge("sidebar").classList.remove("open");
+    ge("overlay").classList.remove("open");
+  }
+
+  /* ─── CATEGORIES ─── */
+  function updateCategories() {
+    elCat.innerHTML = "";
+    (elType.value === "income" ? INCOME_CATS : EXPENSE_CATS).forEach(c => {
+      const o = document.createElement("option");
+      o.value = o.textContent = c;
+      elCat.appendChild(o);
+    });
+    togglePersonField();
+  }
+
+  function togglePersonField() {
+    const type = elType.value;
+    const cat  = elCat.value;
+
+    elPersonDiv.style.display       = "none";
+    elPerson.value                  = "";
+    elPersonSel.innerHTML           = "";
+    elPersonSel.style.display       = "none";
+    elPerson.style.display          = "block";
+
+    const need = (type === "income"  && (cat === "Borrowed" || cat === "Lent Repayment")) ||
+                 (type === "expense" && (cat === "Lent" || cat === "Debt Repayment" || cat === "Gift"));
+
+    if (!need) return;
+
+    elPersonDiv.style.display = "block";
+
+    if (cat === "Lent Repayment" || cat === "Debt Repayment") {
+      const map    = cat === "Lent Repayment" ? lentMap : borrowedMap;
+      const people = Object.keys(map).filter(p => map[p] > 0);
+      if (people.length > 0) {
+        elPersonSel.innerHTML = "";
+        people.forEach(p => {
+          const o = document.createElement("option");
+          o.value = p;
+          o.textContent = `${p} (₹${map[p].toFixed(2)})`;
+          elPersonSel.appendChild(o);
+        });
+        const other = document.createElement("option");
+        other.value = "Other"; other.textContent = "Other (New)";
+        elPersonSel.appendChild(other);
+        elPersonSel.style.display = "block";
+        elPerson.style.display    = "none";
+        elPerson.value            = "";
+      } else {
+        elPersonSel.style.display = "none";
+        elPerson.style.display    = "block";
+      }
+    } else {
+      elPersonSel.style.display = "none";
+      elPerson.style.display    = "block";
+    }
+  }
+
+  function updateDay() {
+    const d = elDate.value;
+    if (!d) { elDay.value = ""; return; }
+    const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    elDay.value = days[new Date(d + "T00:00:00").getDay()];
+  }
+
+  function getPerson() {
+    if (elPersonSel.style.display === "block") {
+      return elPersonSel.value === "Other" ? elPerson.value.trim() : elPersonSel.value;
+    }
+    return elPerson.value.trim();
+  }
+
+  /* ─── FORM DATA ─── */
+  function getFormData() {
+    const date   = elDate.value.trim();
+    const amount = parseFloat(elAmount.value);
+    const type   = elType.value;
+    const cat    = elCat.value;
+    const person = getPerson();
+    const desc   = elDesc.value.trim();
+
+    if (!date) { alert("Please select a date."); return null; }
+    if (isNaN(amount) || amount <= 0) { alert("Please enter a valid amount greater than 0."); return null; }
+
+    const needsPerson =
+      (type === "income"  && (cat === "Borrowed" || cat === "Lent Repayment")) ||
+      (type === "expense" && (cat === "Lent" || cat === "Debt Repayment" || cat === "Gift"));
+    if (needsPerson && !person) { alert("Please enter a person name."); return null; }
+
+    return { date, day: elDay.value, amount, type, category: cat, person, desc };
+  }
+
+  /* ─── APPLY / REVERT ─── */
+  function apply(t) {
+    if (t.type === "income") {
+      if (t.category === "Borrowed") {
+        balance += t.amount;
+        youOwe += t.amount;
+        borrowedMap[t.person] = (borrowedMap[t.person] || 0) + t.amount;
+      }
+      if (t.category === "Lent Repayment") {
+        balance += t.amount;
+        othersOwe = Math.max(0, othersOwe - t.amount);
+        if (t.person) lentMap[t.person] = Math.max(0, (lentMap[t.person] || 0) - t.amount);
+      }
+
+      if (t.category === "Gift Received") { balance += t.amount; }
+      if (t.category === "Salary" || t.category === "Business" || t.category === "Other") {
+        balance += t.amount;
+      }
+    } else {
+      balance -= t.amount;
+      if (t.category === "Lent") {
+        othersOwe += t.amount;
+        lentMap[t.person] = (lentMap[t.person] || 0) + t.amount;
+      }
+      if (t.category === "Debt Repayment") {
+        youOwe = Math.max(0, youOwe - t.amount);
+        if (t.person) borrowedMap[t.person] = Math.max(0, (borrowedMap[t.person] || 0) - t.amount);
+      }
+      if (t.category === "Investment") investments += t.amount;
+      if (t.category === "Gift") {
+        totalGift += t.amount;
+        if (t.person) giftMap[t.person] = (giftMap[t.person] || 0) + t.amount;
+      }
+
+    }
+  }
+
+  function revert(t) {
+    if (t.type === "income") {
+      if (t.category === "Borrowed") {
+        balance -= t.amount;
+        youOwe = Math.max(0, youOwe - t.amount);
+        if (t.person) borrowedMap[t.person] = Math.max(0, (borrowedMap[t.person] || 0) - t.amount);
+      }
+      if (t.category === "Lent Repayment") {
+        balance -= t.amount;
+        othersOwe += t.amount;
+        if (t.person) lentMap[t.person] = (lentMap[t.person] || 0) + t.amount;
+      }
+
+      if (t.category === "Gift Received") { balance -= t.amount; }
+      if (t.category === "Salary" || t.category === "Business" || t.category === "Other") {
+        balance -= t.amount;
+      }
+    } else {
+      balance += t.amount;
+      if (t.category === "Lent") {
+        othersOwe = Math.max(0, othersOwe - t.amount);
+        if (t.person) lentMap[t.person] = Math.max(0, (lentMap[t.person] || 0) - t.amount);
+      }
+      if (t.category === "Debt Repayment") {
+        youOwe += t.amount;
+        if (t.person) borrowedMap[t.person] = (borrowedMap[t.person] || 0) + t.amount;
+      }
+      if (t.category === "Investment") investments = Math.max(0, investments - t.amount);
+      if (t.category === "Gift") {
+        totalGift = Math.max(0, totalGift - t.amount);
+        if (t.person) giftMap[t.person] = Math.max(0, (giftMap[t.person] || 0) - t.amount);
+      }
+
+    }
+  }
+
+  /* ─── CRUD ─── */
+  function addTransaction() {
+    const t = getFormData();
+    if (!t) return;
+    transactions.push(t);
+    apply(t);
+    saveData();
+    updateAll();
+  }
+
+  function updateTransaction() {
+    if (editIndex === null) return;
+    const t = getFormData();
+    if (!t) return;
+    revert(transactions[editIndex]);
+    transactions[editIndex] = t;
+    apply(t);
+    saveData();
+    editIndex = null;
+    elUpdateBtn.style.display = "none";
+    elCancelBtn.style.display = "none";
+    elFormTitle.textContent   = "➕ Add Transaction";
+    updateAll();
+  }
+
+  function editTransaction(i) {
+    if (i < 0 || i >= transactions.length) return;
+    const t = transactions[i];
+    editIndex = i;
+    elDate.value     = t.date;    updateDay();
+    elAmount.value   = t.amount;
+    elType.value     = t.type;    updateCategories();
+    elCat.value      = t.category; togglePersonField();
+
+    if (t.person) {
+        if (elPersonSel.style.display === "block") {
+          const exists = Array.from(elPersonSel.options).some(o => o.value === t.person);
+          if (exists) elPersonSel.value = t.person;
+          else {
+            elPersonSel.value  = "Other";
+            elPerson.style.display = "block";
+            elPerson.value     = t.person;
+          }
+        } else {
+          elPerson.value = t.person;
+        }
+      }
+
+    elDesc.value = t.desc || "";
+    elUpdateBtn.style.display = "inline-flex";
+    elCancelBtn.style.display = "inline-flex";
+    elFormTitle.textContent   = "✏️ Edit Transaction";
+    showPage("add");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function deleteTransaction(i) {
+    if (i < 0 || i >= transactions.length) return;
+    if (!confirm("Move this transaction to Trash? You can restore it within 30 days.")) return;
+    const t = transactions[i];
+    revert(t);
+    transactions.splice(i, 1);
+    // Add to trash with deletion timestamp
+    const trash = loadTrash();
+    trash.push({ ...t, _deletedAt: Date.now() });
+    saveTrash(trash);
+    saveData();
+    updateAll();
+    updateTrashBadge();
+  }
+
+  function cancelEdit() {
+    editIndex = null;
+    elUpdateBtn.style.display = "none";
+    elCancelBtn.style.display = "none";
+    elFormTitle.textContent   = "➕ Add Transaction";
+    clearForm();
+  }
+
+  /* ─── RENDER ─── */
+  function buildTxItem(t, origIndex) {
+    const li       = document.createElement("li");
+    li.className   = "tx-item";
+    const isIncome = t.type === "income";
+    const meta     = [`${t.date} (${t.day || ""})`];
+    if (PERSON_CATS.includes(t.category) && t.person) {
+      meta.push("👤 " + t.person);
+    }
+    if (t.desc) meta.push("📝 " + t.desc);
+
+    const iconDiv = document.createElement("div");
+    iconDiv.className = "tx-icon " + t.type;
+    iconDiv.textContent = isIncome ? "📈" : "📉";
+
+    const infoDiv = document.createElement("div");
+    infoDiv.className = "tx-info";
+
+    const topDiv = document.createElement("div");
+    topDiv.className = "tx-top";
+
+    const catSpan = document.createElement("span");
+    catSpan.className = "tx-cat";
+    catSpan.textContent = t.category;
+
+    const badgeSpan = document.createElement("span");
+    badgeSpan.className = "tx-badge " + t.type;
+    badgeSpan.textContent = t.type.toUpperCase();
+
+    topDiv.appendChild(catSpan);
+    topDiv.appendChild(badgeSpan);
+
+    const metaDiv = document.createElement("div");
+    metaDiv.className = "tx-meta";
+    metaDiv.textContent = meta.join(" · ");
+
+    infoDiv.appendChild(topDiv);
+    infoDiv.appendChild(metaDiv);
+
+    // Running balance — computed lazily via data attribute set by caller
+    if (typeof origIndex === "number") {
+      const runBal = computeRunningBalance(origIndex);
+      if (runBal !== null) {
+        const rbDiv = document.createElement("div");
+        rbDiv.className = "tx-running";
+        rbDiv.textContent = "Balance after: ₹" + runBal.toFixed(2);
+        infoDiv.appendChild(rbDiv);
+      }
+    }
+
+    const amountDiv = document.createElement("div");
+    amountDiv.className = "tx-amount " + t.type;
+    amountDiv.textContent = (isIncome ? "+" : "-") + "₹" + t.amount.toFixed(2);
+
+    const actionsDiv = document.createElement("div");
+    actionsDiv.className = "tx-actions";
+
+    const eb = document.createElement("button");
+    eb.className   = "btn btn-primary btn-sm";
+    eb.textContent = "Edit";
+    eb.addEventListener("click", () => editTransaction(origIndex));
+
+    const db = document.createElement("button");
+    db.className   = "btn btn-danger btn-sm";
+    db.textContent = "Del";
+    db.addEventListener("click", () => deleteTransaction(origIndex));
+
+    actionsDiv.appendChild(eb);
+    actionsDiv.appendChild(db);
+
+    li.appendChild(iconDiv);
+    li.appendChild(infoDiv);
+    li.appendChild(amountDiv);
+    li.appendChild(actionsDiv);
+    return li;
+  }
+
+  function getSortedFiltered(from, to, typeF, catF) {
+    return [...transactions]
+      .sort((a, b) => {
+        const dc = new Date(b.date) - new Date(a.date);
+        return dc !== 0 ? dc : transactions.indexOf(b) - transactions.indexOf(a);
+      })
+      .filter(t => {
+        if (from && t.date < from) return false;
+        if (to   && t.date > to)   return false;
+        if (typeF && t.type     !== typeF) return false;
+        if (catF  && t.category !== catF)  return false;
+        return true;
+      });
+  }
+
+  // Compute running cash balance after transaction at index i
+  // (sorted chronologically, same order as transactions array after loadData sorts it)
+  // Cached initial balance for running balance computation — avoid repeated localStorage reads
+  let _cachedInitBalance = null;
+  function getInitBalanceCache() {
+    if (_cachedInitBalance === null) {
+      const d = loadInitialData();
+      _cachedInitBalance = d ? (parseFloat(d.balance) || 0) : 0;
+    }
+    return _cachedInitBalance;
+  }
+  function invalidateInitBalanceCache() { _cachedInitBalance = null; }
+
+  function computeRunningBalance(idx) {
+    // Sum only balance-affecting transactions in chronological order up to idx.
+    let bal = getInitBalanceCache();
+    for (let i = 0; i <= idx; i++) {
+      const t = transactions[i];
+      if (!t) continue;
+      if (t.type === "income") bal += t.amount;
+      else bal -= t.amount;
+    }
+    return bal;
+  }
+
+  // Populate category filter dropdown
+  function populateCatFilter() {
+    const sel = ge("filterCat");
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">All Categories</option>';
+    const all = [...new Set([...INCOME_CATS, ...EXPENSE_CATS])].sort();
+    all.forEach(c => {
+      const o = document.createElement("option");
+      o.value = o.textContent = c;
+      if (c === cur) o.selected = true;
+      sel.appendChild(o);
+    });
+  }
+
+  function renderMonthlySummary() {
+    const yearSel = ge("monthlyYear");
+    const selYear = parseInt(yearSel.value) || new Date().getFullYear();
+
+    // Populate year dropdown from transaction dates
+    const years = [...new Set(transactions.map(t => t.date ? t.date.split("-")[0] : null).filter(Boolean))].sort();
+    if (years.length === 0) years.push(String(new Date().getFullYear()));
+    const curVal = yearSel.value;
+    yearSel.innerHTML = "";
+    years.forEach(y => {
+      const o = document.createElement("option");
+      o.value = o.textContent = y;
+      if (y === curVal || (!curVal && parseInt(y) === new Date().getFullYear())) o.selected = true;
+      yearSel.appendChild(o);
+    });
+    const activeYear = yearSel.value || years[years.length - 1];
+
+    const container = ge("monthlySummaryContent");
+    container.innerHTML = "";
+
+    const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+    // Build month data for selected year
+    for (let m = 0; m < 12; m++) {
+      const prefix = activeYear + "-" + String(m + 1).padStart(2, "0");
+      const monthTxs = transactions.filter(t => t.date && t.date.startsWith(prefix));
+      if (monthTxs.length === 0) continue;
+
+      let totalIncome = 0, totalExpense = 0;
+      const incCats = {}, expCats = {};
+
+      monthTxs.forEach(t => {
+        if (t.type === "income") {
+          totalIncome += t.amount;
+          incCats[t.category] = (incCats[t.category] || 0) + t.amount;
+        } else {
+          totalExpense += t.amount;
+          expCats[t.category] = (expCats[t.category] || 0) + t.amount;
+        }
+      });
+
+      const net = totalIncome - totalExpense;
+      const block = document.createElement("div");
+      block.className = "month-block";
+
+      const header = document.createElement("div");
+      header.className = "month-header";
+
+      const titleSpan = document.createElement("span");
+      titleSpan.textContent = MONTHS[m] + " " + activeYear;
+
+      const rightDiv = document.createElement("div");
+      rightDiv.className = "mh-right";
+
+      const incSpan = document.createElement("span");
+      incSpan.className = "mh-inc";
+      incSpan.textContent = "+₹" + totalIncome.toFixed(0);
+
+      const expSpan = document.createElement("span");
+      expSpan.className = "mh-exp";
+      expSpan.textContent = "-₹" + totalExpense.toFixed(0);
+
+      const netSpan = document.createElement("span");
+      netSpan.className = "mh-net " + (net >= 0 ? "pos" : "neg");
+      netSpan.textContent = (net >= 0 ? "▲" : "▼") + " ₹" + Math.abs(net).toFixed(0);
+
+      const arrow = document.createElement("span");
+      arrow.textContent = "▶";
+      arrow.style.cssText = "font-size:12px;color:var(--muted);transition:transform 0.2s;";
+
+      rightDiv.appendChild(incSpan);
+      rightDiv.appendChild(expSpan);
+      rightDiv.appendChild(netSpan);
+      rightDiv.appendChild(arrow);
+      header.appendChild(titleSpan);
+      header.appendChild(rightDiv);
+
+      const detail = document.createElement("div");
+      detail.className = "month-detail";
+
+      // Income breakdown
+      if (Object.keys(incCats).length > 0) {
+        const it = document.createElement("div"); it.className = "cat-section-title"; it.textContent = "Income";
+        detail.appendChild(it);
+        Object.entries(incCats).sort((a,b) => b[1]-a[1]).forEach(([cat, amt]) => {
+          const row = document.createElement("div"); row.className = "cat-row";
+          const cn = document.createElement("span"); cn.className = "cat-name"; cn.textContent = cat;
+          const ca = document.createElement("span"); ca.className = "cat-amt inc"; ca.textContent = "+₹" + amt.toFixed(2);
+          row.appendChild(cn); row.appendChild(ca); detail.appendChild(row);
+        });
+      }
+
+      // Expense breakdown with budget bars
+      if (Object.keys(expCats).length > 0) {
+        const et = document.createElement("div"); et.className = "cat-section-title"; et.textContent = "Expenses";
+        detail.appendChild(et);
+        const budgets = loadBudgets();
+        Object.entries(expCats).sort((a,b) => b[1]-a[1]).forEach(([cat, amt]) => {
+          const row = document.createElement("div"); row.className = "cat-row";
+          row.style.flexDirection = "column"; row.style.alignItems = "stretch";
+          const topRow = document.createElement("div");
+          topRow.style.cssText = "display:flex;justify-content:space-between;";
+          const cn = document.createElement("span"); cn.className = "cat-name"; cn.textContent = cat;
+          const ca = document.createElement("span"); ca.className = "cat-amt exp"; ca.textContent = "-₹" + amt.toFixed(2);
+          topRow.appendChild(cn); topRow.appendChild(ca);
+          row.appendChild(topRow);
+          // Budget bar if limit set
+          const limit = budgets[cat];
+          if (limit > 0) {
+            const pct = Math.min(100, (amt / limit) * 100);
+            const cls = pct >= 100 ? "over" : pct >= 80 ? "warn" : "ok";
+            const barWrap = document.createElement("div"); barWrap.className = "budget-bar-wrap";
+            const barBg = document.createElement("div"); barBg.className = "budget-bar-bg";
+            const barFill = document.createElement("div");
+            barFill.className = "budget-bar-fill " + cls;
+            barFill.style.width = pct + "%";
+            barBg.appendChild(barFill); barWrap.appendChild(barBg);
+            const meta = document.createElement("div"); meta.className = "budget-meta";
+            meta.innerHTML = "<span>₹" + amt.toFixed(0) + " / ₹" + limit.toFixed(0) + "</span><span>" + pct.toFixed(0) + "%</span>";
+            barWrap.appendChild(meta); row.appendChild(barWrap);
+          }
+          detail.appendChild(row);
+        });
+      }
+
+      header.addEventListener("click", () => {
+        const open = detail.classList.toggle("open");
+        arrow.style.transform = open ? "rotate(90deg)" : "";
+      });
+
+      block.appendChild(header);
+      block.appendChild(detail);
+      container.appendChild(block);
+    }
+
+    if (container.innerHTML === "") {
+      container.innerHTML = '<p class="empty">No transactions for ' + activeYear + '</p>';
+    }
+  }
+
+  function filterTransactions() {
+    const from   = elFromDate.value;
+    const to     = elToDate.value;
+    const typeF  = ge("filterType") ? ge("filterType").value : "";
+    const catF   = ge("filterCat")  ? ge("filterCat").value  : "";
+    const query  = (ge("searchText") ? ge("searchText").value.trim().toLowerCase() : "");
+    const hist   = ge("history");
+    hist.innerHTML = "";
+
+    let sorted = getSortedFiltered(from, to, typeF, catF);
+    if (query) {
+      sorted = sorted.filter(t =>
+        (t.desc   || "").toLowerCase().includes(query) ||
+        (t.person || "").toLowerCase().includes(query) ||
+        (t.category|| "").toLowerCase().includes(query)
+      );
+    }
+
+    // Totals row
+    const totalsEl = ge("historyTotals");
+    if (sorted.length > 0) {
+      let tInc = 0, tExp = 0;
+      sorted.forEach(t => { if (t.type === "income") tInc += t.amount; else tExp += t.amount; });
+      const net = tInc - tExp;
+      ge("htCount").textContent = sorted.length + " transaction" + (sorted.length !== 1 ? "s" : "");
+      ge("htInc").textContent   = "+₹" + tInc.toFixed(2);
+      ge("htExp").textContent   = "-₹" + tExp.toFixed(2);
+      ge("htNet").textContent   = "Net: " + (net >= 0 ? "+" : "") + "₹" + net.toFixed(2);
+      totalsEl.style.display = "flex";
+    } else {
+      totalsEl.style.display = "none";
+    }
+
+    if (sorted.length === 0) {
+      const li = document.createElement("li");
+      li.className = "empty"; li.textContent = "No transactions found";
+      hist.appendChild(li); return;
+    }
+    sorted.forEach(t => {
+      const origIndex = transactions.indexOf(t);
+      hist.appendChild(buildTxItem(t, origIndex));
+    });
+  }
+
+  function renderRecent() {
+    const el     = ge("recentHistory");
+    el.innerHTML = "";
+    const sorted = getSortedFiltered("", "", "", "").slice(0, 5);
+    if (sorted.length === 0) {
+      const li = document.createElement("li");
+      li.className = "empty"; li.textContent = "No transactions yet";
+      el.appendChild(li); return;
+    }
+    sorted.forEach(t => {
+      const origIndex = transactions.indexOf(t);
+      el.appendChild(buildTxItem(t, origIndex));
+    });
+  }
+
+  function updateAll() {
+    updateUI();
+    filterTransactions();
+    renderRecent();
+    clearForm();
+  }
+
+  function updateUI() {
+    ge("balance").textContent     = balance.toFixed(2);
+    ge("youOwe").textContent      = youOwe.toFixed(2);
+    ge("othersOwe").textContent   = othersOwe.toFixed(2);
+    ge("investments").textContent = investments.toFixed(2);
+    ge("totalGift").textContent   = totalGift.toFixed(2);
+    const nw   = balance + investments + othersOwe - youOwe;
+    const nwEl = ge("netWorth");
+    nwEl.textContent = "₹" + nw.toFixed(2);
+    nwEl.className   = "nwval" + (nw < 0 ? " neg" : "");
+    renderBorrowedList();
+    renderLentList();
+    renderGiftList();
+    renderNetSettlement();
+    updateTrashBadge();
+  }
+
+  /* ─── PERSON LIST RENDERERS ─── */
+
+  function renderBorrowedList() {
+    const div = ge("borrowedList");
+    div.innerHTML = "";
+    let has = false;
+
+    // ── Regular debt items ──
+    const regularItems = {};
+    for (const p in borrowedMap) {
+      if (borrowedMap[p] > 0) {
+        regularItems[p] = borrowedMap[p];
+      }
+    }
+
+    const sortedRegular = Object.keys(regularItems).sort();
+    for (const p of sortedRegular) {
+      has = true;
+      const container = document.createElement("div");
+
+      const item = document.createElement("div");
+      item.className = "person-item";
+
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "pname";
+      nameSpan.textContent = p;
+
+      const amtSpan = document.createElement("span");
+      amtSpan.className = "pamount";
+      amtSpan.textContent = "₹" + regularItems[p].toFixed(2);
+
+      item.appendChild(nameSpan);
+
+      const expandBtn = document.createElement("button");
+      expandBtn.className = "expand-btn";
+      expandBtn.textContent = "▶";
+      expandBtn.title = "Show transactions";
+
+      const sublistId = "borrowed-" + p.replace(/\s+/g, "-");
+      expandBtn.addEventListener("click", function () {
+        let sublist = document.getElementById(sublistId);
+        if (!sublist) {
+          sublist = document.createElement("div");
+          sublist.id = sublistId;
+          sublist.className = "person-sublist";
+
+          const allTxs = transactions
+            .filter(t => (t.type === "income" && t.category === "Borrowed" && t.person === p) ||
+                         (t.type === "expense" && t.category === "Debt Repayment" && t.person === p))
+            .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+          if (allTxs.length > 0) {
+            allTxs.forEach(t => {
+              const subitem = document.createElement("div");
+              const labelSpan = document.createElement("span");
+              const amtEl = document.createElement("span");
+              if (t.category === "Borrowed") {
+                subitem.className = "person-subitem borrowed";
+                labelSpan.textContent = "🟢 " + t.date + " Borrowed" + (t.desc ? " - " + t.desc : "");
+                amtEl.textContent = "+₹" + t.amount.toFixed(2);
+              } else {
+                subitem.className = "person-subitem repaid";
+                labelSpan.textContent = "🔴 " + t.date + " Repaid" + (t.desc ? " - " + t.desc : "");
+                amtEl.textContent = "-₹" + t.amount.toFixed(2);
+              }
+              subitem.appendChild(labelSpan);
+              subitem.appendChild(amtEl);
+              sublist.appendChild(subitem);
+            });
+          } else {
+            const subitem = document.createElement("div");
+            subitem.className = "person-subitem";
+            const span = document.createElement("span");
+            span.style.color = "var(--muted)";
+            span.textContent = "No transactions found";
+            subitem.appendChild(span);
+            sublist.appendChild(subitem);
+          }
+          container.appendChild(sublist);
+        }
+
+        if (sublist.style.display === "none") {
+          sublist.style.display = "block";
+          expandBtn.classList.add("expanded");
+          expandBtn.textContent = "▼";
+        } else {
+          sublist.style.display = "none";
+          expandBtn.classList.remove("expanded");
+          expandBtn.textContent = "▶";
+        }
+      });
+
+      item.appendChild(expandBtn);
+      item.appendChild(amtSpan);
+      container.appendChild(item);
+      div.appendChild(container);
+    }
+
+    if (!has) {
+      const p = document.createElement("p");
+      p.className = "empty"; p.textContent = "No debts";
+      div.appendChild(p);
+    }
+  }
+
+  function renderLentList() {
+    const div = ge("lentList");
+    div.innerHTML = "";
+    // Only show people with a net positive outstanding amount (lent > repaid)
+    const sortedPeople = Object.keys(lentMap).filter(p => lentMap[p] > 0).sort();
+
+    if (sortedPeople.length === 0) {
+      const p = document.createElement("p");
+      p.className = "empty"; p.textContent = "No loans";
+      div.appendChild(p);
+      return;
+    }
+
+    for (const p of sortedPeople) {
+      const container = document.createElement("div");
+
+      const item = document.createElement("div");
+      item.className = "person-item";
+
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "pname";
+      nameSpan.textContent = p;
+
+      const amtSpan = document.createElement("span");
+      amtSpan.className = "pamount";
+      amtSpan.textContent = "₹" + lentMap[p].toFixed(2);
+
+      item.appendChild(nameSpan);
+
+      // Expandable transaction history
+      const expandBtn = document.createElement("button");
+      expandBtn.className = "expand-btn";
+      expandBtn.textContent = "▶";
+      expandBtn.title = "Show transactions";
+
+      const sublistId = "lent-" + p.replace(/\s+/g, "-");
+      expandBtn.addEventListener("click", function () {
+        let sublist = document.getElementById(sublistId);
+        if (!sublist) {
+          sublist = document.createElement("div");
+          sublist.id = sublistId;
+          sublist.className = "person-sublist";
+
+          const allTxs = transactions
+            .filter(t => (t.type === "expense" && t.category === "Lent" && t.person === p) ||
+                         (t.type === "income"  && t.category === "Lent Repayment" && t.person === p))
+            .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+          if (allTxs.length > 0) {
+            allTxs.forEach(t => {
+              const subitem = document.createElement("div");
+              const labelSpan = document.createElement("span");
+              const amtEl = document.createElement("span");
+              if (t.category === "Lent") {
+                subitem.className = "person-subitem lent";
+                labelSpan.textContent = "🔴 " + t.date + " Lent" + (t.desc ? " - " + t.desc : "");
+                amtEl.textContent = "-₹" + t.amount.toFixed(2);
+              } else {
+                subitem.className = "person-subitem repayment";
+                labelSpan.textContent = "🟢 " + t.date + " Repaid" + (t.desc ? " - " + t.desc : "");
+                amtEl.textContent = "+₹" + t.amount.toFixed(2);
+              }
+              subitem.appendChild(labelSpan);
+              subitem.appendChild(amtEl);
+              sublist.appendChild(subitem);
+            });
+          } else {
+            const subitem = document.createElement("div");
+            subitem.className = "person-subitem";
+            const span = document.createElement("span");
+            span.style.color = "var(--muted)";
+            span.textContent = "No transactions found";
+            subitem.appendChild(span);
+            sublist.appendChild(subitem);
+          }
+
+          container.appendChild(sublist);
+        }
+
+        if (sublist.style.display === "none") {
+          sublist.style.display = "block";
+          expandBtn.classList.add("expanded");
+          expandBtn.textContent = "▼";
+        } else {
+          sublist.style.display = "none";
+          expandBtn.classList.remove("expanded");
+          expandBtn.textContent = "▶";
+        }
+      });
+
+      item.appendChild(expandBtn);
+      item.appendChild(amtSpan);
+      container.appendChild(item);
+      div.appendChild(container);
+    }
+  }
+
+  function renderGiftList() {
+    const div = ge("giftList");
+    div.innerHTML = "";
+    const sortedPeople = Object.keys(giftMap).filter(p => giftMap[p] > 0).sort();
+
+    if (sortedPeople.length === 0) {
+      const p = document.createElement("p");
+      p.className = "empty"; p.textContent = "No gifts";
+      div.appendChild(p);
+      return;
+    }
+
+    for (const p of sortedPeople) {
+      const item = document.createElement("div");
+      item.className = "person-item";
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "pname";
+      nameSpan.textContent = p;
+      const amtSpan = document.createElement("span");
+      amtSpan.className = "pamount";
+      amtSpan.textContent = "₹" + giftMap[p].toFixed(2);
+      item.appendChild(nameSpan);
+      item.appendChild(amtSpan);
+      div.appendChild(item);
+    }
+  }
+
+  function clearForm() {
+    elAmount.value            = "";
+    elDesc.value              = "";
+    elPerson.value            = "";
+    elPersonSel.innerHTML     = "";
+    elPersonSel.style.display = "none";
+    elPerson.style.display    = "block";
+    elPersonDiv.style.display = "none";
+    elType.value = "income";
+    updateCategories();
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm   = String(now.getMonth() + 1).padStart(2, "0");
+    const dd   = String(now.getDate()).padStart(2, "0");
+    elDate.value = `${yyyy}-${mm}-${dd}`;
+    updateDay();
+  }
+
+  function clearFilter() {
+    elFromDate.value = "";
+    elToDate.value   = "";
+    const ft = ge("filterType"); if (ft) ft.value = "";
+    const fc = ge("filterCat");  if (fc) fc.value = "";
+    const st = ge("searchText"); if (st) st.value = "";
+    filterTransactions();
+  }
+
+  function clearAllData() {
+    if (!confirm("Clear all data? This cannot be undone!")) return;
+    balance = youOwe = othersOwe = investments = totalGift = 0;
+    transactions = []; borrowedMap = {}; lentMap = {}; giftMap = {};
+    editIndex = null;
+    elUpdateBtn.style.display = "none";
+    elCancelBtn.style.display = "none";
+    elFormTitle.textContent   = "➕ Add Transaction";
+    localStorage.removeItem(SETUP_DONE_KEY);
+    localStorage.removeItem(INITIAL_DATA_KEY);
+    saveData();
+    updateAll();
+    alert("✅ All data cleared successfully!");
+    showSetupIfNeeded();
+  }
+
+  /* ─── XLSX ─── */
+  function downloadXLSX() {
+    if (transactions.length === 0) { alert("No transactions to download."); return; }
+    const from   = elFromDate.value;
+    const to     = elToDate.value;
+    // Warn if filter is active so user doesn't accidentally export partial data
+    if ((from || to) && !confirm(`Filter active (${from||"start"} → ${to||"end"}). Export only filtered transactions?
+
+Click Cancel then clear filters to export all.`)) return;
+    const sorted = getSortedFiltered(from, to, "", "");
+    if (sorted.length === 0) { alert("No transactions in selected date range."); return; }
+
+    const txRows = sorted.map(t => ({
+      "Date"       : t.date,
+      "Day"        : t.day  || "",
+      "Type"       : t.type.charAt(0).toUpperCase() + t.type.slice(1),
+      "Category"   : t.category,
+      "Amount"     : t.amount,
+      "Person"     : PERSON_CATS.includes(t.category) ? (t.person || "") : "",
+      "Month"      : t.month || "",
+      "Description": t.desc || ""
+    }));
+
+    const nw = balance + investments + othersOwe - youOwe;
+    const summaryRows = [
+      { "Field": "Cash Balance",   "Amount": balance },
+      { "Field": "You Owe",        "Amount": youOwe },
+      { "Field": "Others Owe You", "Amount": othersOwe },
+      { "Field": "Investments",    "Amount": investments },
+      { "Field": "Gifts Given",    "Amount": totalGift },
+      { "Field": "",               "Amount": "" },
+      { "Field": "Net Worth (excl. investments)", "Amount": nw }
+    ];
+
+    const personRows = [];
+    for (const p in borrowedMap) if (borrowedMap[p] > 0) personRows.push({ "Category": "Borrowed From", "Person": p, "Amount": borrowedMap[p] });
+    for (const p in lentMap)     if (lentMap[p]     > 0) personRows.push({ "Category": "Lent To",        "Person": p, "Amount": lentMap[p] });
+    for (const p in giftMap)     if (giftMap[p]     > 0) personRows.push({ "Category": "Gift Given To",  "Person": p, "Amount": giftMap[p] });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(txRows),      "Transactions");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), "Summary");
+    if (personRows.length > 0)
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(personRows), "Person-wise");
+
+    const fn = "Finance_" + (from && to ? `${from}_to_${to}` : from ? `from_${from}` : to ? `till_${to}` : "All") + ".xlsx";
+    XLSX.writeFile(wb, fn);
+  }
+
+  function importXLSX(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".xlsx")) {
+      alert("Please select a valid .xlsx file."); return;
+    }
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      try {
+        const wb    = XLSX.read(e.target.result, { type: "binary" });
+        const sheet = wb.Sheets["Transactions"];
+        if (!sheet) { alert("Invalid file. Please use a file exported from this app."); return; }
+        const rows = XLSX.utils.sheet_to_json(sheet);
+        if (rows.length === 0) { alert("No transactions found in file."); return; }
+        if (!confirm(`Import ${rows.length} transactions? This will replace all current data.`)) return;
+
+        balance = youOwe = othersOwe = investments = totalGift = 0;
+        transactions = []; borrowedMap = {}; lentMap = {}; giftMap = {};
+
+        // Parse all valid rows first
+        const parsed = [];
+        rows.forEach(r => {
+          const t = {
+            date    : String(r["Date"]        || "").trim(),
+            day     : String(r["Day"]         || "").trim(),
+            amount  : parseFloat(r["Amount"]) || 0,
+            type    : String(r["Type"]        || "").toLowerCase().trim(),
+            category: String(r["Category"]    || "").trim(),
+            person  : String(r["Person"]      || "").trim(),
+            month   : String(r["Month"]       || "").trim(),
+            desc    : String(r["Description"] || "").trim()
+          };
+          const allCats = [...INCOME_CATS, ...EXPENSE_CATS];
+          const validDate = /^\d{4}-\d{2}-\d{2}$/.test(t.date);
+          const validType = t.type === "income" || t.type === "expense";
+          const validAmt  = t.amount > 0 && isFinite(t.amount);
+          const validCat  = allCats.includes(t.category);
+          if (validDate && validAmt && validType && validCat) {
+            parsed.push(t);
+          }
+        });
+
+        // Sort ascending by date so lent always comes before its repayment
+        parsed.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+
+        // Apply in chronological order
+        let imported = 0;
+        parsed.forEach(t => {
+          transactions.push(t);
+          apply(t);
+          imported++;
+        });
+
+        // Re-apply initial data on top of imported transactions
+        const initD = loadInitialData();
+        if (initD) applyInitialData(initD);
+        saveData(); updateAll();
+        alert(`✅ Imported ${imported} transactions successfully!`);
+      } catch (err) {
+        console.error("Import error:", err);
+        alert("❌ Import failed. Please use a valid exported file.");
+      }
+    };
+    reader.onerror = function () { alert("❌ Failed to read file."); };
+    reader.readAsBinaryString(file);
+    event.target.value = "";
+  }
+
+  /* ─── STORAGE ─── */
+  function saveData() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(
+        { balance, youOwe, othersOwe, investments, totalGift,
+          transactions, borrowedMap, lentMap, giftMap }
+      ));
+    } catch (e) {
+      console.error("Save error:", e);
+      alert("⚠️ Could not save data. Storage may be full.");
+    }
+  }
+
+  function loadData() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) return;
+      const d = JSON.parse(saved);
+      // Only restore the transactions array — recompute all aggregates
+      // from scratch so stale/buggy stored values never pollute the UI.
+      const raw = Array.isArray(d.transactions) ? d.transactions : [];
+      // Sort ascending so lent always precedes its repayment when replaying
+      transactions = [...raw].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+      balance = 0; youOwe = 0; othersOwe = 0; investments = 0; totalGift = 0;
+      borrowedMap = {}; lentMap = {}; giftMap = {};
+      transactions.forEach(t => apply(t));
+    } catch (e) {
+      console.error("Load error:", e);
+    }
+  }
+
+  /* ─── EVENT LISTENERS ─── */
+  document.querySelectorAll(".nav-item[data-page]")
+    .forEach(el => el.addEventListener("click", () => showPage(el.dataset.page)));
+  document.querySelectorAll(".bn-item[data-page]")
+    .forEach(el => el.addEventListener("click", () => showPage(el.dataset.page)));
+
+  ge("hamburgerBtn").addEventListener("click", toggleSidebar);
+  ge("overlay").addEventListener("click", closeSidebar);
+  ge("clearBtn").addEventListener("click", function(e) { e.preventDefault(); clearAllData(); });
+
+  ge("sidebarDownload").addEventListener("click", downloadXLSX);
+  ge("sidebarImport").addEventListener("click", () => ge("importFile").click());
+
+  ge("addBtn").addEventListener("click", addTransaction);
+  ge("updateBtn").addEventListener("click", updateTransaction);
+  ge("cancelBtn").addEventListener("click", cancelEdit);
+
+  elDate.addEventListener("change", updateDay);
+  elType.addEventListener("change", () => { updateCategories(); togglePersonField(); });
+  elCat.addEventListener("change", togglePersonField);
+
+
+
+  ge("clearFilterBtn").addEventListener("click", clearFilter);
+  ge("filterType").addEventListener("change", filterTransactions);
+  ge("filterCat").addEventListener("change", filterTransactions);
+  ge("searchText").addEventListener("input", filterTransactions);
+  document.addEventListener("change", function(e) {
+    if (e.target && e.target.id === "monthlyYear") renderMonthlySummary();
+  });
+  ge("downloadBtn").addEventListener("click", downloadXLSX);
+  ge("importBtn").addEventListener("click", () => ge("importFile").click());
+  ge("importFile").addEventListener("change", importXLSX);
+  ge("darkToggle").addEventListener("click", toggleDark);
+  ge("saveTemplateBtn").addEventListener("click", saveTemplate);
+  ge("saveBudgetBtn").addEventListener("click", saveBudget);
+  ge("emptyTrashBtn").addEventListener("click", emptyTrash);
+  ge("exportMonthlyBtn").addEventListener("click", exportMonthlySummary);
+
+  /* ─── SETUP / INITIAL DETAILS ─── */
+  // initialData is stored separately and never appears in history.
+  // It directly modifies the aggregate state variables only.
+  // (keys declared at top level below)
+
+  // ---------- helpers ----------
+  function makePersonEntry(listId, noFocus) {
+    const list = ge(listId);
+    const row  = document.createElement("div");
+    row.className = "setup-person-entry";
+
+    const nameInput = document.createElement("input");
+    nameInput.type        = "text";
+    nameInput.placeholder = "Person name";
+
+    const amtInput = document.createElement("input");
+    amtInput.type        = "number";
+    amtInput.min         = "0";
+    amtInput.step        = "0.01";
+    amtInput.placeholder = "Amount (₹)";
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className   = "btn-remove";
+    removeBtn.textContent = "✕";
+    removeBtn.title       = "Remove";
+    removeBtn.addEventListener("click", () => list.removeChild(row));
+
+    row.appendChild(nameInput);
+    row.appendChild(amtInput);
+    row.appendChild(removeBtn);
+    list.appendChild(row);
+    if (!noFocus) nameInput.focus();
+    return row;
+  }
+
+  function collectPersonEntries(listId) {
+    const entries = [];
+    ge(listId).querySelectorAll(".setup-person-entry").forEach(row => {
+      const inputs = row.querySelectorAll("input");
+      const name   = inputs[0].value.trim();
+      const amount = parseFloat(inputs[1].value) || 0;
+      if (name && amount > 0) entries.push({ name, amount });
+    });
+    return entries;
+  }
+
+  function populatePersonList(listId, entries) {
+    const list = ge(listId);
+    list.innerHTML = "";
+    (entries || []).forEach(({ name, amount }) => {
+      const row = makePersonEntry(listId, true);
+      row.querySelectorAll("input")[0].value = name;
+      row.querySelectorAll("input")[1].value = amount;
+    });
+  }
+
+  // Apply initial data directly to aggregate state (NO transactions pushed).
+  // This keeps history clean.
+  function applyInitialData(data) {
+    const b = parseFloat(data.balance)    || 0;
+    const i = parseFloat(data.investment) || 0;
+    balance     += b;
+    investments += i;
+
+    (data.debts || []).forEach(({ name, amount }) => {
+      if (!name || amount <= 0) return;
+      youOwe += amount;
+      borrowedMap[name] = (borrowedMap[name] || 0) + amount;
+    });
+    (data.lents || []).forEach(({ name, amount }) => {
+      if (!name || amount <= 0) return;
+      othersOwe += amount;
+      lentMap[name] = (lentMap[name] || 0) + amount;
+    });
+    (data.gifts || []).forEach(({ name, amount }) => {
+      if (!name || amount <= 0) return;
+      totalGift += amount;
+      giftMap[name] = (giftMap[name] || 0) + amount;
+    });
+  }
+
+  function loadInitialData() {
+    try {
+      const raw = localStorage.getItem(INITIAL_DATA_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch(e) { return null; }
+  }
+
+  function saveInitialData(data) {
+    localStorage.setItem(INITIAL_DATA_KEY, JSON.stringify(data));
+    invalidateInitBalanceCache();
+  }
+
+  // ---------- setup overlay (first-time) ----------
+  function collectSetupForm() {
+    return {
+      balance    : parseFloat(ge("setupBalance").value)    || 0,
+      investment : parseFloat(ge("setupInvestment").value) || 0,
+      debts      : collectPersonEntries("setupDebtList"),
+      lents      : collectPersonEntries("setupLentList"),
+      gifts      : collectPersonEntries("setupGiftList")
+    };
+  }
+
+  function showSetupIfNeeded() {
+    const done = localStorage.getItem(SETUP_DONE_KEY);
+    if (done) { ge("setupOverlay").classList.add("hidden"); return; }
+    ge("setupOverlay").classList.remove("hidden");
+  }
+
+  ge("addDebtPerson").addEventListener("click", () => makePersonEntry("setupDebtList"));
+  ge("addLentPerson").addEventListener("click", () => makePersonEntry("setupLentList"));
+  ge("addGiftPerson").addEventListener("click", () => makePersonEntry("setupGiftList"));
+
+  ge("setupProceedBtn").addEventListener("click", function () {
+    const data = collectSetupForm();
+    saveInitialData(data);
+    localStorage.setItem(SETUP_DONE_KEY, "1");
+    ge("setupOverlay").classList.add("hidden");
+    // Re-run full load so initial data is applied fresh
+    reloadAll();
+  });
+
+  ge("setupSkipBtn").addEventListener("click", function () {
+    saveInitialData({ balance:0, investment:0, debts:[], lents:[], gifts:[] });
+    localStorage.setItem(SETUP_DONE_KEY, "1");
+    ge("setupOverlay").classList.add("hidden");
+  });
+
+  // ---------- initial-details page (edit) ----------
+  function renderInitialPage() {
+    const data = loadInitialData() || { balance:0, investment:0, debts:[], lents:[], gifts:[] };
+    ge("initBalanceEdit").value    = data.balance    || "";
+    ge("initInvestmentEdit").value = data.investment || "";
+    populatePersonList("initDebtList", data.debts);
+    populatePersonList("initLentList", data.lents);
+    populatePersonList("initGiftList", data.gifts);
+  }
+
+  ge("initAddDebt").addEventListener("click", () => makePersonEntry("initDebtList"));
+  ge("initAddLent").addEventListener("click", () => makePersonEntry("initLentList"));
+  ge("initAddGift").addEventListener("click", () => makePersonEntry("initGiftList"));
+
+  ge("initSaveBtn").addEventListener("click", function () {
+    const data = {
+      balance    : parseFloat(ge("initBalanceEdit").value)    || 0,
+      investment : parseFloat(ge("initInvestmentEdit").value) || 0,
+      debts      : collectPersonEntries("initDebtList"),
+      lents      : collectPersonEntries("initLentList"),
+      gifts      : collectPersonEntries("initGiftList")
+    };
+    saveInitialData(data);
+    reloadAll();
+    alert("✅ Initial details saved!");
+  });
+
+  // ---------- full reload from storage ----------
+  function reloadAll() {
+    loadData();           // resets & replays transactions
+    const init = loadInitialData();
+    if (init) applyInitialData(init);
+    updateUI();
+    filterTransactions();
+    renderRecent();
+  }
+
+  /* ─── DARK MODE ─── */
+  function toggleDark() {
+    const isDark = document.body.classList.toggle("dark");
+    localStorage.setItem(DARK_KEY, isDark ? "1" : "");
+    ge("darkToggle").textContent = isDark ? "☀️" : "🌙";
+  }
+  function initDark() {
+    if (localStorage.getItem(DARK_KEY)) {
+      document.body.classList.add("dark");
+      ge("darkToggle").textContent = "☀️";
+    }
+  }
+
+  /* ─── TRASH ─── */
+  function loadTrash() {
+    try { const r = localStorage.getItem(TRASH_KEY); return r ? JSON.parse(r) : []; }
+    catch(e) { return []; }
+  }
+  function saveTrash(arr) {
+    // Purge items older than 30 days
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const pruned = arr.filter(t => t._deletedAt && t._deletedAt > cutoff);
+    localStorage.setItem(TRASH_KEY, JSON.stringify(pruned));
+  }
+  function updateTrashBadge() {
+    const trash = loadTrash();
+    const badge = ge("trashBadge");
+    if (!badge) return;
+    if (trash.length > 0) {
+      badge.textContent = trash.length;
+      badge.style.display = "inline";
+    } else {
+      badge.style.display = "none";
+    }
+  }
+  function renderTrash() {
+    const list = ge("trashList");
+    list.innerHTML = "";
+    const trash = loadTrash();
+    if (trash.length === 0) {
+      const li = document.createElement("li"); li.className = "empty"; li.textContent = "Trash is empty";
+      list.appendChild(li); return;
+    }
+    // Sort newest-deleted first
+    [...trash].sort((a,b) => b._deletedAt - a._deletedAt).forEach((t, idx) => {
+      const origIdx = trash.indexOf(t);
+      const li = document.createElement("li"); li.className = "tx-item deleted-pending";
+      const isIncome = t.type === "income";
+      const iconDiv = document.createElement("div");
+      iconDiv.className = "tx-icon " + t.type;
+      iconDiv.textContent = isIncome ? "📈" : "📉";
+      const infoDiv = document.createElement("div"); infoDiv.className = "tx-info";
+      const topDiv = document.createElement("div"); topDiv.className = "tx-top";
+      const catSpan = document.createElement("span"); catSpan.className = "tx-cat"; catSpan.textContent = t.category;
+      const trashBadge = document.createElement("span"); trashBadge.className = "trash-badge"; trashBadge.textContent = "DELETED";
+      topDiv.appendChild(catSpan); topDiv.appendChild(trashBadge);
+      const metaDiv = document.createElement("div"); metaDiv.className = "tx-meta";
+      const daysAgo = Math.floor((Date.now() - t._deletedAt) / (24*60*60*1000));
+      const expires = 30 - daysAgo;
+      metaDiv.textContent = t.date + (t.person ? " · 👤 " + t.person : "") + (t.desc ? " · " + t.desc : "") + " · expires in " + expires + "d";
+      infoDiv.appendChild(topDiv); infoDiv.appendChild(metaDiv);
+      const amtDiv = document.createElement("div");
+      amtDiv.className = "tx-amount " + t.type;
+      amtDiv.textContent = (isIncome ? "+" : "-") + "₹" + t.amount.toFixed(2);
+      const actDiv = document.createElement("div"); actDiv.className = "tx-actions";
+      const restoreBtn = document.createElement("button");
+      restoreBtn.className = "restore-btn"; restoreBtn.textContent = "↩ Restore";
+      restoreBtn.addEventListener("click", () => {
+        const tr = loadTrash(); const item = tr[origIdx];
+        if (!item) return;
+        tr.splice(origIdx, 1); saveTrash(tr);
+        const { _deletedAt, ...clean } = item;
+        transactions.push(clean);
+        apply(clean);
+        saveData(); updateAll(); renderTrash();
+      });
+      const permDelBtn = document.createElement("button");
+      permDelBtn.className = "btn btn-danger btn-sm"; permDelBtn.textContent = "✕";
+      permDelBtn.title = "Permanently delete";
+      permDelBtn.addEventListener("click", () => {
+        if (!confirm("Permanently delete this transaction? Cannot be undone.")) return;
+        const tr = loadTrash(); tr.splice(origIdx, 1); saveTrash(tr); renderTrash(); updateTrashBadge();
+      });
+      actDiv.appendChild(restoreBtn); actDiv.appendChild(permDelBtn);
+      li.appendChild(iconDiv); li.appendChild(infoDiv); li.appendChild(amtDiv); li.appendChild(actDiv);
+      list.appendChild(li);
+    });
+  }
+  function emptyTrash() {
+    if (!confirm("Permanently delete all trashed transactions? This cannot be undone.")) return;
+    saveTrash([]);
+    renderTrash(); updateTrashBadge();
+  }
+
+  /* ─── RECURRING TEMPLATES ─── */
+  function loadTemplates() {
+    try { const r = localStorage.getItem(TEMPLATES_KEY); return r ? JSON.parse(r) : []; }
+    catch(e) { return []; }
+  }
+  function saveTemplates(arr) { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(arr)); }
+
+  function saveTemplate() {
+    const name = ge("templateName").value.trim();
+    if (!name) { alert("Please enter a template name."); return; }
+    const date   = elDate.value.trim();
+    const amount = parseFloat(elAmount.value);
+    const type   = elType.value;
+    const cat    = elCat.value;
+    const person = getPerson();
+    const desc   = elDesc.value.trim();
+    if (!date || isNaN(amount) || amount <= 0) {
+      alert("Please fill in the Add Transaction form first (date and amount required)."); return;
+    }
+    const tpls = loadTemplates();
+    tpls.push({ name, amount, type, category: cat, person, desc });
+    saveTemplates(tpls);
+    ge("templateName").value = "";
+    alert("✅ Template saved: " + name);
+    if (currentPage === "recurring") renderTemplates();
+  }
+
+  function renderTemplates() {
+    const list = ge("templateList");
+    list.innerHTML = "";
+    const tpls = loadTemplates();
+    if (tpls.length === 0) {
+      list.innerHTML = '<p class="empty">No templates yet. Add a transaction and save it as a template.</p>'; return;
+    }
+    tpls.forEach((tpl, idx) => {
+      const item = document.createElement("div"); item.className = "template-item";
+      const nameSpan = document.createElement("div"); nameSpan.className = "tpl-name"; nameSpan.textContent = tpl.name;
+      const metaSpan = document.createElement("div"); metaSpan.className = "tpl-meta";
+      metaSpan.textContent = tpl.category + (tpl.person ? " · " + tpl.person : "") + (tpl.desc ? " · " + tpl.desc : "");
+      const left = document.createElement("div"); left.style.flex = "1";
+      left.appendChild(nameSpan); left.appendChild(metaSpan);
+      const amtSpan = document.createElement("span");
+      amtSpan.className = "tpl-amt " + tpl.type;
+      amtSpan.textContent = (tpl.type === "income" ? "+" : "-") + "₹" + tpl.amount.toFixed(2);
+      const applyBtn = document.createElement("button");
+      applyBtn.className = "btn btn-primary btn-sm"; applyBtn.textContent = "▶ Apply";
+      applyBtn.addEventListener("click", () => {
+        // Fill the Add Transaction form with this template
+        elType.value = tpl.type; updateCategories();
+        elCat.value = tpl.category; togglePersonField();
+        elAmount.value = tpl.amount;
+        elDesc.value = tpl.desc || "";
+        if (tpl.person && elPersonDiv.style.display !== "none") {
+          elPerson.value = tpl.person;
+        }
+        // Set today's date
+        const now = new Date();
+        elDate.value = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2,"0") + "-" + String(now.getDate()).padStart(2,"0");
+        updateDay();
+        showPage("add");
+      });
+      const delBtn = document.createElement("button");
+      delBtn.className = "btn btn-danger btn-sm"; delBtn.textContent = "✕";
+      delBtn.title = "Delete template";
+      delBtn.addEventListener("click", () => {
+        const arr = loadTemplates(); arr.splice(idx, 1); saveTemplates(arr); renderTemplates();
+      });
+      item.appendChild(left); item.appendChild(amtSpan); item.appendChild(applyBtn); item.appendChild(delBtn);
+      list.appendChild(item);
+    });
+  }
+
+  /* ─── BUDGETS ─── */
+  function loadBudgets() {
+    try { const r = localStorage.getItem(BUDGETS_KEY); return r ? JSON.parse(r) : {}; }
+    catch(e) { return {}; }
+  }
+  function saveBudgets(obj) { localStorage.setItem(BUDGETS_KEY, JSON.stringify(obj)); }
+
+  function renderBudgetPage() {
+    // Populate category select with expense cats only
+    const sel = ge("budgetCat"); sel.innerHTML = "";
+    EXPENSE_CATS.filter(c => !["Debt Repayment","Lent","Investment","Gift"].includes(c))
+      .forEach(cat => {
+        const o = document.createElement("option"); o.value = o.textContent = cat; sel.appendChild(o);
+      });
+    renderBudgetList();
+  }
+
+  function renderBudgetList() {
+    const div = ge("budgetList"); div.innerHTML = "";
+    const budgets = loadBudgets();
+    const keys = Object.keys(budgets).filter(k => budgets[k] > 0);
+    if (keys.length === 0) {
+      div.innerHTML = '<p class="empty">No budgets set yet.</p>'; return;
+    }
+    keys.sort().forEach(cat => {
+      const item = document.createElement("div"); item.className = "template-item";
+      const nameSpan = document.createElement("span"); nameSpan.className = "tpl-name"; nameSpan.textContent = cat;
+      const amtSpan = document.createElement("span"); amtSpan.className = "tpl-amt expense"; amtSpan.textContent = "₹" + budgets[cat].toFixed(0) + "/mo";
+      const delBtn = document.createElement("button"); delBtn.className = "btn btn-danger btn-sm"; delBtn.textContent = "✕";
+      delBtn.addEventListener("click", () => {
+        const b = loadBudgets(); delete b[cat]; saveBudgets(b); renderBudgetList();
+      });
+      item.appendChild(nameSpan); item.appendChild(amtSpan); item.appendChild(delBtn);
+      div.appendChild(item);
+    });
+  }
+
+  function saveBudget() {
+    const cat = ge("budgetCat").value;
+    const amt = parseFloat(ge("budgetAmt").value);
+    if (!cat || isNaN(amt) || amt <= 0) { alert("Please select a category and enter a valid amount."); return; }
+    const b = loadBudgets(); b[cat] = amt; saveBudgets(b);
+    ge("budgetAmt").value = "";
+    renderBudgetList();
+  }
+
+  /* ─── NET SETTLEMENT (debt netting) ─── */
+  function renderNetSettlement() {
+    const card = ge("netSettlementCard");
+    const list = ge("netSettlementList");
+    if (!card || !list) return;
+    list.innerHTML = "";
+    // Find people who appear in both borrowed and lent
+    const borrowPeople = {};
+    for (const k in borrowedMap) {
+      if (borrowedMap[k] > 0) borrowPeople[k] = borrowedMap[k];
+    }
+    const lentPeople = {};
+    for (const k in lentMap) {
+      if (lentMap[k] > 0) lentPeople[k] = lentMap[k];
+    }
+    const allPeople = new Set([...Object.keys(borrowPeople), ...Object.keys(lentPeople)]);
+    const nets = [];
+    allPeople.forEach(p => {
+      const owe  = borrowPeople[p] || 0;  // you owe them
+      const owed = lentPeople[p]   || 0;  // they owe you
+      if (owe > 0 && owed > 0) {
+        nets.push({ person: p, owe, owed, net: owed - owe });
+      }
+    });
+    if (nets.length === 0) { card.style.display = "none"; return; }
+    card.style.display = "block";
+    nets.sort((a,b) => a.person.localeCompare(b.person)).forEach(({ person, owe, owed, net }) => {
+      const row = document.createElement("div"); row.className = "person-item";
+      const nameSpan = document.createElement("span"); nameSpan.className = "pname"; nameSpan.textContent = person;
+      const badge = document.createElement("span");
+      badge.className = "net-badge " + (net >= 0 ? "owed" : "owe");
+      badge.textContent = net >= 0
+        ? "they owe you ₹" + net.toFixed(2)
+        : "you owe ₹" + Math.abs(net).toFixed(2);
+      const detail = document.createElement("span");
+      detail.style.cssText = "font-size:11px;color:var(--muted);margin-left:8px;";
+      detail.textContent = "(borrowed ₹" + owe.toFixed(0) + " · lent ₹" + owed.toFixed(0) + ")";
+      row.appendChild(nameSpan); row.appendChild(badge); row.appendChild(detail);
+      list.appendChild(row);
+    });
+  }
+
+  /* ─── MONTHLY XLSX EXPORT ─── */
+  function exportMonthlySummary() {
+    const yearSel = ge("monthlyYear");
+    const activeYear = yearSel.value || String(new Date().getFullYear());
+    const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const rows = [];
+    for (let m = 0; m < 12; m++) {
+      const prefix = activeYear + "-" + String(m + 1).padStart(2, "0");
+      const monthTxs = transactions.filter(t => t.date && t.date.startsWith(prefix));
+      if (monthTxs.length === 0) continue;
+      let tInc = 0, tExp = 0;
+      const incCats = {}, expCats = {};
+      monthTxs.forEach(t => {
+        if (t.type === "income") { tInc += t.amount; incCats[t.category] = (incCats[t.category]||0)+t.amount; }
+        else { tExp += t.amount; expCats[t.category] = (expCats[t.category]||0)+t.amount; }
+      });
+      rows.push({ "Month": MONTHS[m]+" "+activeYear, "Category": "TOTAL INCOME", "Amount": tInc });
+      Object.entries(incCats).sort((a,b)=>b[1]-a[1]).forEach(([cat,amt]) => {
+        rows.push({ "Month": "", "Category": cat, "Amount": amt });
+      });
+      rows.push({ "Month": "", "Category": "TOTAL EXPENSE", "Amount": -tExp });
+      Object.entries(expCats).sort((a,b)=>b[1]-a[1]).forEach(([cat,amt]) => {
+        rows.push({ "Month": "", "Category": cat, "Amount": -amt });
+      });
+      rows.push({ "Month": "", "Category": "NET", "Amount": tInc - tExp });
+      rows.push({ "Month": "", "Category": "", "Amount": "" });
+    }
+    if (rows.length === 0) { alert("No data for " + activeYear); return; }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Monthly Summary");
+    XLSX.writeFile(wb, "Monthly_Summary_" + activeYear + ".xlsx");
+  }
+
+  /* ─── INIT ─── */
+  loadData();
+  const initData = loadInitialData();
+  if (initData) applyInitialData(initData);
+  clearForm();
+  updateUI();
+  renderRecent();
+  initDark();
+  updateTrashBadge();
+  showSetupIfNeeded();
+
+});
+</script>
+</body>
+</html>
